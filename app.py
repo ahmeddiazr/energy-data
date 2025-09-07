@@ -35,6 +35,9 @@ def load_and_process_data(file_path):
         # Atur DATE_TIME sebagai indeks untuk analisis time series
         df = df.set_index('DATE_TIME')
         return df
+    except FileNotFoundError:
+        st.error(f"File '{file_path}' tidak ditemukan. Pastikan file CSV ada di repository.")
+        return pd.DataFrame()
     except KeyError as e:
         st.error(f"Error: Kolom yang dibutuhkan tidak ditemukan. Pastikan file CSV Anda memiliki kolom 'Date-Hour(NMT)'. Detail: {e}")
         return pd.DataFrame()
@@ -42,21 +45,16 @@ def load_and_process_data(file_path):
         st.error(f"Terjadi kesalahan saat memuat atau memproses file: {e}")
         return pd.DataFrame()
 
-# --- Sidebar untuk upload file csv ---
-st.sidebar.header("Unggah & Filter Data")
-uploaded_file_sidebar = st.sidebar.file_uploader("Pilih file CSV", type="csv")
-
-# Tentukan file yang akan digunakan. Prioritaskan yang diunggah via sidebar,
-# jika tidak ada, gunakan nama file default Anda.
-file_to_use = uploaded_file_sidebar if uploaded_file_sidebar is not None else "Solar Power Plant Data.csv"
-
-# Memuat data
-df = load_and_process_data(file_to_use)
+# --- Memuat data langsung dari file di repository ---
+file_path = "Solar Power Plant Data.csv"
+df = load_and_process_data(file_path)
 
 if not df.empty:
-    st.sidebar.success(f"Data dari '{getattr(file_to_use, 'name', file_to_use)}' berhasil dimuat!")
+    st.success(f"Data dari '{file_path}' berhasil dimuat!")
 
-    # --- Filter Data (Sidebar) ---
+    # --- Sidebar untuk Filter Data ---
+    st.sidebar.header("Filter Data")
+    
     min_date = df.index.min().date()
     max_date = df.index.max().date()
     date_range = st.sidebar.date_input(
@@ -158,13 +156,20 @@ if not df.empty:
     st.header("6. Analisis Korelasi")
     # Pilih kolom numerik untuk korelasi
     numeric_cols = df_filtered.select_dtypes(include=np.number).columns.tolist()
-    correlation_col = st.selectbox("Pilih variabel untuk korelasi dengan SystemProduction:", numeric_cols, index=numeric_cols.index('Radiation'))
+    
+    # Check if 'Radiation' exists, otherwise use the first numeric column
+    default_col_index = 0
+    if 'Radiation' in numeric_cols:
+        default_col_index = numeric_cols.index('Radiation')
+    
+    correlation_col = st.selectbox("Pilih variabel untuk korelasi dengan pembangkitan energi:", 
+                                  numeric_cols, 
+                                  index=default_col_index)
 
-    fig_corr = px.scatter(df_filtered, x=correlation_col, y='SystemProduction',
-                          title=f'Korelasi antara {correlation_col} dan SystemProduction',
+    fig_corr = px.scatter(df_filtered, x=correlation_col, y=selected_generation_col,
+                          title=f'Korelasi antara {correlation_col} dan {selected_generation_col}',
                           trendline="ols") # ols = ordinary least squares, menambahkan garis tren
     st.plotly_chart(fig_corr, use_container_width=True)
 
-
 else:
-    st.warning("Silakan unggah file 'Solar Power Plant Data.csv' atau file CSV sejenis melalui sidebar untuk memulai.")
+    st.error("❌ File 'Solar Power Plant Data.csv' tidak dapat dimuat. Pastikan file ada di repository dengan nama yang tepat.")
